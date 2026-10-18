@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Мероприятия ПГУ — админка</title>
+  <style>
+    :root {
+      --bg: #f3f5fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --line: rgba(15, 23, 42, 0.08);
+      --indigo: #4f46e5;
+      --indigo-deep: #4338ca;
+      --danger: #dc2626;
+      --green: #059669;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(160deg, #e8eefc 0%, var(--bg) 40%, #eef7f3 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
+    h1 { margin: 0 0 6px; font-size: 28px; }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .grid { display: grid; gap: 20px; grid-template-columns: 1.1fr 1fr; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+    }
+    .card h2 { margin: 0 0 14px; font-size: 18px; }
+    label { display: block; font-size: 12px; color: var(--muted); font-weight: 700; margin: 10px 0 6px; }
+    input, select, textarea, button {
+      font: inherit;
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      padding: 11px 12px;
+      background: #fbfcff;
+      color: var(--text);
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    button {
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--indigo-deep), var(--indigo));
+      color: #fff;
+      border: none;
+      font-weight: 700;
+      margin-top: 14px;
+    }
+    button.danger {
+      background: #fff;
+      color: var(--danger);
+      border: 1px solid rgba(220, 38, 38, 0.35);
+      width: auto;
+      margin: 0;
+      padding: 8px 12px;
+    }
+    .token-bar {
+      display: flex;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+    .token-bar > div { flex: 1; }
+    .token-bar button { width: auto; margin: 0; padding: 11px 18px; }
+    .status { min-height: 22px; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+    .status.ok { color: var(--green); }
+    .status.err { color: var(--danger); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .meta { color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .count { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>База мероприятий</h1>
+    <p class="sub">Все записи из SQLite. Добавление и удаление здесь и в приложении работают с одной базой.</p>
+
+    <div class="card token-bar">
+      <div>
+        <label for="token">Токен администратора</label>
+        <input id="token" type="password" placeholder="токен из server/lib/config.dart" />
+      </div>
+      <button type="button" id="saveToken">Сохранить</button>
+    </div>
+    <div id="status" class="status"></div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Все мероприятия</h2>
+        <div class="count" id="count">Загрузка…</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Название</th>
+                <th>Когда</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Добавить мероприятие</h2>
+        <form id="form">
+          <label for="title">Название</label>
+          <input id="title" required />
+
+          <label for="description">Описание</label>
+          <textarea id="description"></textarea>
+
+          <div class="row">
+            <div>
+              <label for="start">Начало</label>
+              <input id="start" type="datetime-local" required />
+            </div>
+            <div>
+              <label for="end">Окончание</label>
+              <input id="end" type="datetime-local" required />
+            </div>
+          </div>
+
+          <label for="location">Место</label>
+          <input id="location" />
+
+          <label for="type">Тип</label>
+          <select id="type"></select>
+
+          <label for="branch">Филиал</label>
+          <select id="branch"></select>
+
+          <label for="department">Кафедра</label>
+          <select id="department"></select>
+
+          <label for="direction">Направление</label>
+          <select id="direction"></select>
+
+          <label for="course">Курс</label>
+          <select id="course"></select>
+
+          <button type="submit">Добавить в базу</button>
+        </form>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'pgu_admin_token';
+    let catalog = { branches: [], types: [] };
+
+    const statusEl = document.getElementById('status');
+    const tokenInput = document.getElementById('token');
+    tokenInput.value = localStorage.getItem(TOKEN_KEY) || 'pgu-a8f3c9e2b7d14e6f90a2c5d8b1e4f7a3';
+
+    function setStatus(text, kind = '') {
+      statusEl.textContent = text;
+      statusEl.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    function token() {
+      return tokenInput.value.trim();
+    }
+
+    function adminHeaders() {
+      return {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Admin-Token': token(),
+      };
+    }
+
+    function toLocalInput(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso.slice(0, 16);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function fromLocalInput(value) {
+      const [date, time] = value.split('T');
+      return `${date}T${time}:00`;
+    }
+
+    function branchName(id) {
+      const branch = catalog.branches.find((item) => item.id === id);
+      return branch ? `${branch.name} филиал` : id;
+    }
+
+    function directionName(id) {
+      for (const branch of catalog.branches) {
+        for (const dept of branch.departments) {
+          const dir = dept.directions.find((item) => item.id === id);
+          if (dir) return dir.name;
+        }
+      }
+      return id;
+    }
+
+    function fillTypes() {
+      const select = document.getElementById('type');
+      select.innerHTML = catalog.types.map((item) => `<option value="${item.id}">${item.label}</option>`).join('');
+    }
+
+    function fillBranches() {
+      const select = document.getElementById('branch');
+      select.innerHTML = catalog.branches.map((item) => `<option value="${item.id}">${item.name} филиал</option>`).join('');
+      fillDepartments();
+    }
+
+    function currentBranch() {
+      return catalog.branches.find((item) => item.id === document.getElementById('branch').value);
+    }
+
+    function fillDepartments() {
+      const branch = currentBranch();
+      const select = document.getElementById('department');
+      select.innerHTML = (branch?.departments || []).map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+      fillDirections();
+    }
+
+    function fillDirections() {
+      const branch = currentBranch();
+      const deptId = document.getElementById('department').value;
+      const dept = branch?.departments.find((item) => item.id === deptId);
+      const select = document.getElementById('direction');
+      select.innerHTML = (dept?.directions || []).map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+      fillCourses();
+    }
+
+    function fillCourses() {
+      const branch = currentBranch();
+      const deptId = document.getElementById('department').value;
+      const dirId = document.getElementById('direction').value;
+      const dept = branch?.departments.find((item) => item.id === deptId);
+      const dir = dept?.directions.find((item) => item.id === dirId);
+      const select = document.getElementById('course');
+      select.innerHTML = (dir?.courses || [1, 2, 3, 4]).map((n) => `<option value="${n}">${n}</option>`).join('');
+    }
+
+    async function loadCatalog() {
+      const response = await fetch('/meta/university');
+      catalog = await response.json();
+      fillTypes();
+      fillBranches();
+    }
+
+    async function loadEvents() {
+      const response = await fetch('/events');
+      if (!response.ok) throw new Error('Не удалось загрузить список');
+      const events = await response.json();
+      document.getElementById('count').textContent = `Всего в базе: ${events.length}`;
+      const rows = document.getElementById('rows');
+      rows.innerHTML = events.map((event) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(event.title)}</strong>
+            <div class="meta">${escapeHtml(event.location || '—')} · ${escapeHtml(directionName(event.directionId))} · ${event.course} курс<br>${escapeHtml(branchName(event.branchId))}</div>
+          </td>
+          <td class="meta">${escapeHtml(event.start.replace('T', ' '))} —<br>${escapeHtml(event.end.replace('T', ' '))}</td>
+          <td><button class="danger" data-id="${escapeHtml(event.id)}" type="button">Удалить</button></td>
+        </tr>
+      `).join('');
+      rows.querySelectorAll('button[data-id]').forEach((button) => {
+        button.addEventListener('click', () => deleteEvent(button.dataset.id));
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }
+
+    async function deleteEvent(id) {
+      if (!confirm('Удалить мероприятие из базы?')) return;
+      const response = await fetch(`/events/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: adminHeaders(),
+      });
+      if (!response.ok) {
+        setStatus('Удаление отклонено. Проверьте токен.', 'err');
+        return;
+      }
+      setStatus('Мероприятие удалено.', 'ok');
+      await loadEvents();
+    }
+
+    document.getElementById('saveToken').addEventListener('click', () => {
+      localStorage.setItem(TOKEN_KEY, token());
+      setStatus('Токен сохранён в этом браузере.', 'ok');
+    });
+
+    document.getElementById('branch').addEventListener('change', fillDepartments);
+    document.getElementById('department').addEventListener('change', fillDirections);
+    document.getElementById('direction').addEventListener('change', fillCourses);
+
+    document.getElementById('form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = {
+        id: `web_${Date.now()}`,
+        title: document.getElementById('title').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        start: fromLocalInput(document.getElementById('start').value),
+        end: fromLocalInput(document.getElementById('end').value),
+        location: document.getElementById('location').value.trim(),
+        type: document.getElementById('type').value,
+        branchId: document.getElementById('branch').value,
+        directionId: document.getElementById('direction').value,
+        course: Number(document.getElementById('course').value),
+      };
+      const response = await fetch('/events', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setStatus(`Не удалось добавить (${body.error || response.status}).`, 'err');
+        return;
+      }
+      document.getElementById('form').reset();
+      fillBranches();
+      setStatus('Мероприятие добавлено в базу.', 'ok');
+      await loadEvents();
+    });
+
+    (async () => {
+      try {
+        await loadCatalog();
+        await loadEvents();
+        setStatus('База подключена.', 'ok');
+      } catch (error) {
+        setStatus(String(error.message || error), 'err');
+      }
+    })();
+  </script>
+</body>
+</html>

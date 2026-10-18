@@ -40,12 +40,6 @@ class StorageService {
     await (await prefs).setString('events_cache', raw);
   }
 
-  Future<String> loadServerUrl() async => (await prefs).getString('server_url') ?? '';
-
-  Future<void> saveServerUrl(String url) async {
-    await (await prefs).setString('server_url', url);
-  }
-
   Future<Set<String>> loadIdSet(String userId, String key) async {
     final values = (await prefs).getStringList(_userKey(userId, key));
     return values?.toSet() ?? {};

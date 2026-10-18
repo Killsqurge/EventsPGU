@@ -1,0 +1,7 @@
+.dart_tool/
+.pub/
+.packages
+pubspec.lock
+data/
+*.db
+*.db-journal

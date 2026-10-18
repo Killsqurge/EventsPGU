@@ -1,0 +1,17 @@
+name: pgu_events_server
+description: Отдельный бэкенд мероприятий ПГУ с SQLite и веб-админкой.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  path: ^1.9.1
+  shelf: ^1.4.2
+  shelf_cors_headers: ^0.1.5
+  shelf_router: ^1.1.4
+  sqflite_common_ffi: ^2.3.6
+
+dev_dependencies:
+  lints: ^5.1.1

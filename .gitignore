@@ -23,8 +23,11 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
-# Локальная база сервера мероприятий
+# Локальные данные старого JSON-сервера (если остались)
 tool/data/
+
+# SQLite база отдельного бэкенда
+server/data/
 
 # Flutter/Dart/Pub related
 **/doc/api/

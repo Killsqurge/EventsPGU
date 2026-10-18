@@ -7,33 +7,13 @@ import '../theme/app_colors.dart';
 import '../utils/format.dart';
 import '../widgets/filter_sheet.dart';
 
-class ProfilePage extends StatefulWidget {
+class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key, required this.controller});
 
   final AppController controller;
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
-}
-
-class _ProfilePageState extends State<ProfilePage> {
-  late final TextEditingController _server;
-
-  @override
-  void initState() {
-    super.initState();
-    _server = TextEditingController(text: widget.controller.serverUrl);
-  }
-
-  @override
-  void dispose() {
-    _server.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final controller = widget.controller;
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
@@ -73,15 +53,16 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 20),
             Row(
               children: [
-                _stat('Избранных', '${controller.favorites.length}'),
+                _stat(context, 'Избранных', '${controller.favorites.length}'),
                 const SizedBox(width: 8),
-                _stat('Участвую', '${controller.participating.length}'),
+                _stat(context, 'Участвую', '${controller.participating.length}'),
                 const SizedBox(width: 8),
-                _stat('Напоминание', remindLabel(controller.remindMinutes)),
+                _stat(context, 'Напоминание', remindLabel(controller.remindMinutes)),
               ],
             ),
             const SizedBox(height: 16),
             _section(
+              context,
               'Тема',
               Wrap(
                 spacing: 8,
@@ -111,6 +92,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 16),
             _section(
+              context,
               'Мой университет',
               path.isEmpty
                   ? Text('Филиал, кафедра, направление и курс ещё не выбраны', style: TextStyle(color: colors.muted))
@@ -118,24 +100,27 @@ class _ProfilePageState extends State<ProfilePage> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (final chip in path)
+                        for (final label in path)
                           Chip(
-                            label: Text(chip),
-                            backgroundColor: colors.indigo.withValues(alpha: 0.15),
-                            labelStyle: TextStyle(color: colors.indigo),
-                            side: BorderSide.none,
+                            label: Text(label),
+                            backgroundColor: colors.indigoSoft,
+                            labelStyle: TextStyle(color: colors.chipText, fontWeight: FontWeight.w600),
                           ),
                       ],
                     ),
             ),
             const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () => showFilterSheet(context, controller),
-              child: const Text('Выбрать и сохранить'),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => showFilterSheet(context, controller),
+                child: const Text('Выбрать и сохранить'),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             _section(
-              'Звук до начала',
+              context,
+              'Напоминания',
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -159,45 +144,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           onSelected: (_) => controller.setRemindMinutes(minutes),
                         ),
                     ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            _section(
-              'Сервер мероприятий',
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Администратор запускает сервер на компьютере и добавляет или удаляет мероприятия. Этот адрес нужен всем телефонам, которые должны видеть тот же список.',
-                    style: TextStyle(color: colors.muted, fontSize: 12, height: 1.4),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _server,
-                    style: TextStyle(color: colors.text),
-                    decoration: InputDecoration(
-                      hintText: 'http://192.168.0.10:8080',
-                      hintStyle: TextStyle(color: colors.faint),
-                      filled: true,
-                      fillColor: colors.fill,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () async {
-                        final error = await controller.setServerUrl(_server.text);
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(error ?? (controller.serverUrl.isEmpty ? 'Список снова берётся с телефона' : 'Подключено к серверу'))),
-                        );
-                      },
-                      child: const Text('Сохранить адрес'),
-                    ),
                   ),
                 ],
               ),
@@ -243,37 +189,19 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _askAdminCode(BuildContext context) async {
-    final code = TextEditingController();
-    final ok = await showDialog<bool>(
+    final entered = await showDialog<String>(
       context: context,
-      builder: (context) {
-        final colors = AppColors.of(context);
-        return AlertDialog(
-          backgroundColor: colors.card,
-          title: Text('Код администратора', style: TextStyle(color: colors.text)),
-          content: TextField(
-            controller: code,
-            autofocus: true,
-            obscureText: true,
-            style: TextStyle(color: colors.text),
-            decoration: const InputDecoration(hintText: 'Код'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
-            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Войти')),
-          ],
-        );
-      },
+      builder: (context) => const _AdminCodeDialog(),
     );
-    if (ok == true && code.text.trim() == AppConfig.adminAccessCode) {
-      await widget.controller.setAdmin(true);
-    } else if (ok == true && context.mounted) {
+    if (!context.mounted || entered == null) return;
+    if (entered.trim() == AppConfig.adminAccessCode) {
+      await controller.setAdmin(true);
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Неверный код')));
     }
-    code.dispose();
   }
 
-  Widget _stat(String label, String value) {
+  Widget _stat(BuildContext context, String label, String value) {
     final colors = AppColors.of(context);
     return Expanded(
       child: Container(
@@ -294,7 +222,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _section(String title, Widget child) {
+  Widget _section(BuildContext context, String title, Widget child) {
     final colors = AppColors.of(context);
     return Container(
       width: double.infinity,
@@ -312,6 +240,50 @@ class _ProfilePageState extends State<ProfilePage> {
           child,
         ],
       ),
+    );
+  }
+}
+
+class _AdminCodeDialog extends StatefulWidget {
+  const _AdminCodeDialog();
+
+  @override
+  State<_AdminCodeDialog> createState() => _AdminCodeDialogState();
+}
+
+class _AdminCodeDialogState extends State<_AdminCodeDialog> {
+  late final TextEditingController _code;
+
+  @override
+  void initState() {
+    super.initState();
+    _code = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return AlertDialog(
+      backgroundColor: colors.card,
+      title: Text('Код администратора', style: TextStyle(color: colors.text)),
+      content: TextField(
+        controller: _code,
+        autofocus: true,
+        obscureText: true,
+        style: TextStyle(color: colors.text),
+        decoration: const InputDecoration(hintText: 'Код'),
+        onSubmitted: (value) => Navigator.pop(context, value),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(context, _code.text), child: const Text('Войти')),
+      ],
     );
   }
 }

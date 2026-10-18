@@ -10,7 +10,6 @@ import '../services/auth_service.dart';
 import '../services/event_api.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
-import '../utils/format.dart';
 
 class AppController extends ChangeNotifier {
   AppController({
@@ -32,7 +31,7 @@ class AppController extends ChangeNotifier {
   Set<String> participating = {};
   AcademicFilter filter = AcademicFilter.empty;
   int remindMinutes = AppConfig.defaultRemindMinutes;
-  String serverUrl = '';
+  String get serverUrl => AppConfig.serverUrl.trim();
   String? syncMessage;
   var lightTheme = false;
   var _adminFlag = false;
@@ -72,7 +71,6 @@ class AppController extends ChangeNotifier {
     }
     user = live ?? session;
     if (live != null) await storage.saveSession(live);
-    serverUrl = await storage.loadServerUrl();
     lightTheme = await storage.loadLightTheme();
     _applyOverlay();
     if (user != null) await _loadUserData();
@@ -247,15 +245,6 @@ class AppController extends ChangeNotifier {
 
   void _applyOverlay() {
     SystemChrome.setSystemUIOverlayStyle(lightTheme ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light);
-  }
-
-  Future<String?> setServerUrl(String raw) async {
-    final normalized = normalizeServerUrl(raw);
-    if (normalized == null) return 'Некорректный адрес сервера';
-    serverUrl = normalized;
-    await storage.saveServerUrl(serverUrl);
-    await refreshEvents();
-    return null;
   }
 
   Future<void> _loadUserData() async {
